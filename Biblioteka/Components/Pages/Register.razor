@@ -1,0 +1,82 @@
+﻿@page "/register"
+@rendermode InteractiveServer
+@using Biblioteka.Infrastructure.Auth
+@using Microsoft.AspNetCore.Identity
+@using System.ComponentModel.DataAnnotations
+@inject UserManager<AppUser> UserManager
+@inject SignInManager<AppUser> SignInManager
+@inject NavigationManager Nav
+
+<h3>Rejestracja</h3>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleRegister" formname="registerForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <div class="mb-3">
+        <label>Email</label>
+        <InputText class="form-control" @bind-Value="_model.Email" />
+    </div>
+    <div class="mb-3">
+        <label>Hasło</label>
+        <InputText type="password" class="form-control" @bind-Value="_model.Password" />
+    </div>
+    <button class="btn btn-primary" type="submit">Zarejestruj</button>
+</EditForm>
+
+@code {
+    private string? _error;
+
+    private RegisterModel _model = new();
+
+    private class RegisterModel
+    {
+        [Required, EmailAddress]
+        public string Email { get; set; } = "";
+        [Required, MinLength(6)]
+        public string Password { get; set; } = "";
+    }
+
+    private async Task HandleRegister()
+    {
+        try
+        {
+            var user = new AppUser
+            {
+                UserName = _model.Email,
+                Email = _model.Email,
+                EmailConfirmed = true
+            };
+
+            var result = await UserManager.CreateAsync(user, _model.Password);
+
+            if (!result.Succeeded)
+            {
+                _error = string.Join(", ", result.Errors.Select(e => e.Description));
+                return;
+            }
+
+            // Nowy użytkownik = rola "User"
+            var roleResult = await UserManager.AddToRoleAsync(user, "User");
+            if (!roleResult.Succeeded)
+            {
+                _error = "Błąd przy dodawaniu roli: " +
+                         string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                return;
+            }
+
+            // await SignInManager.SignInAsync(user, isPersistent: true);
+            Nav.NavigateTo("/login", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            // dokładny błąd na stronie, zamiast żółtego paska na dole
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+            Console.WriteLine(ex); // dodatkowo log do konsoli VS
+        }
+    }
+}

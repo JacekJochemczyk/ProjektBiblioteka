@@ -1,0 +1,182 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using Biblioteka.Domain
+
+@inject INotificationService NotificationService
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthProvider
+
+@inherits LayoutComponentBase
+@implements IDisposable
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4 d-flex justify-content-end align-items-center position-relative">
+            <AuthorizeView>
+                <Authorized>
+                    @* CLICK CATCHER (zamykanie po kliknięciu poza dropdown) *@
+                    @if (_showNotifications)
+                    {
+                        <div class="position-fixed top-0 start-0 w-100 h-100"
+                             style="z-index: 900;"
+                             @onclick="CloseNotifications">
+                        </div>
+                    }
+
+                    <button class="btn btn-link text-decoration-none position-relative"
+                            type="button"
+                            @onclick="ToggleNotificationsAsync">
+                        🔔
+
+                        @if (_unreadCount > 0)
+                        {
+                            <span class="badge bg-danger position-absolute top-0 start-100 translate-middle">
+                                @_unreadCount
+                            </span>
+                        }
+                    </button>
+
+                    @if (_showNotifications)
+                    {
+                        <div class="position-absolute end-0 mt-2 bg-white border rounded shadow"
+                             style="width: 320px; z-index: 1000;"
+                             @onclick:stopPropagation="true">
+
+                            <div class="p-2 fw-bold border-bottom">
+                                Powiadomienia (nieprzeczytane)
+                            </div>
+
+                            @if (_notifications.Count == 0)
+                            {
+                                <div class="p-2 text-muted">
+                                    Brak powiadomień
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var n in _notifications)
+                                {
+                                    <div class="p-2 border-bottom fw-bold"
+                                         style="cursor:pointer"
+                                         @onclick="() => NavigateFromNotification(n)">
+                                        @n.Message
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private int _unreadCount;
+    private string? _userId;
+
+    private bool _showNotifications;
+    private List<Notification> _notifications = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthProvider.AuthenticationStateChanged += OnAuthStateChanged;
+        await RefreshUserAsync();
+    }
+
+    public void Dispose()
+    {
+        AuthProvider.AuthenticationStateChanged -= OnAuthStateChanged;
+    }
+
+    private async void OnAuthStateChanged(Task<AuthenticationState> _)
+    {
+        await InvokeAsync(async () =>
+        {
+            await RefreshUserAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task RefreshUserAsync()
+    {
+        // reset UI
+        _showNotifications = false;
+        _notifications.Clear();
+        _unreadCount = 0;
+        _userId = null;
+
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated != true)
+            return;
+
+        _userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (_userId is null)
+            return;
+
+        var unread = await NotificationService.GetUnreadAsync(_userId);
+        _unreadCount = unread.Count;
+    }
+
+    private async Task ToggleNotificationsAsync()
+    {
+        _showNotifications = !_showNotifications;
+
+        if (!_showNotifications)
+            return;
+
+        if (_userId is null)
+            return;
+
+        // pokazujemy TYLKO nieprzeczytane
+        _notifications = (await NotificationService.GetUnreadAsync(_userId)).ToList();
+        _unreadCount = _notifications.Count;
+    }
+
+    private async Task CloseNotifications()
+    {
+        if (!_showNotifications)
+            return;
+
+        _showNotifications = false;
+
+        // przy wersji "tylko nieprzeczytane" najlepiej oznaczać jako przeczytane dopiero na zamknięciu
+        if (_userId is not null)
+        {
+            await NotificationService.MarkAllAsReadAsync(_userId);
+            _unreadCount = 0;
+        }
+
+        _notifications.Clear();
+    }
+
+    private async Task NavigateFromNotification(Notification _)
+    {
+        // klik w powiadomienie: zamknij + oznacz przeczytane + przejdź
+        await CloseNotifications();
+
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.IsInRole("Employee"))
+            Nav.NavigateTo("/admin/reservations");
+        else
+            Nav.NavigateTo("/my-reservations");
+    }
+}

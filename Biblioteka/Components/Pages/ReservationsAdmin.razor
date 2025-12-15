@@ -1,0 +1,356 @@
+﻿@page "/admin/reservations"
+@rendermode InteractiveServer
+
+@using Biblioteka.Domain
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Biblioteka.Infrastructure.Auth
+@inject IReservationService ReservationService
+@inject IReservationMediator ReservationMediator
+@inject UserManager<AppUser> UserManager
+
+<h3>Rezerwacje – panel pracownika</h3>
+
+<AuthorizeView Roles="Employee">
+    <Authorized>
+        @if (!_isLoaded)
+        {
+            <p>Ładowanie...</p>
+        }
+        else
+        {
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="alert alert-danger">@_error</div>
+            }
+            @if (!string.IsNullOrEmpty(_success))
+            {
+                <div class="alert alert-success">@_success</div>
+            }
+
+            @if (_reservations.Count == 0)
+            {
+                <p>Brak rezerwacji.</p>
+            }
+            else
+            {
+                @if (_reservationIdToCancel.HasValue)
+                {
+                    <div class="alert alert-warning">
+                        <div class="mb-2">
+                            Anulowanie rezerwacji książki:
+                            <strong>@_reservationTitleToCancel</strong>
+                        </div>
+                        <div class="mb-2">
+                            <label>Powód anulowania:</label>
+                            <textarea class="form-control"
+                                      @bind="_cancellationReasonToSet"></textarea>
+                        </div>
+                        <button class="btn btn-sm btn-danger me-2" @onclick="ConfirmCancelAsync">
+                            Potwierdź anulowanie
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="CancelCancel">
+                            Anuluj
+                        </button>
+                    </div>
+                }
+
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tytuł</th>
+                            <th>Autor</th>
+                            <th>Użytkownik</th>
+                            <th>Utworzona</th>
+                            <th>Rezerwacja do</th>
+                            <th>Status</th>
+                            <th>Powód anulowania</th>
+                            <th>Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _reservations)
+                        {
+                            <tr>
+                                <td>@r.Id</td>
+                                <td>@r.Book?.Title</td>
+                                <td>@r.Book?.Author</td>
+                                <td>@GetUserEmail(r.UserId)</td>
+                                <td>@r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@r.ReservedUntil.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@GetStatusText(r)</td>
+                                <td>@(string.IsNullOrWhiteSpace(r.CancellationReason) ? "-" : r.CancellationReason)</td>
+                                <td>
+                                    @if (CanMarkPrepared(r))
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary me-1"
+                                                @onclick="() => MarkPreparedAsync(r.Id)">
+                                            Gotowa do odbioru
+                                        </button>
+                                    }
+
+                                    @if (CanMarkPickedUp(r))
+                                    {
+                                        <button class="btn btn-sm btn-outline-success me-1"
+                                                @onclick="() => MarkPickedUpAsync(r.Id)">
+                                            Wydana
+                                        </button>
+                                    }
+
+                                    @if (CanMarkReturned(r))
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                                @onclick="() => MarkReturnedAsync(r.Id)">
+                                            Zwrócona
+                                        </button>
+                                    }
+
+                                    @if (CanCancelFromAdmin(r))
+                                    {
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => AskCancel(r)">
+                                            Anuluj z powodem
+                                        </button>
+                                    }
+
+                                    @if (CanDelete(r))
+                                    {
+                                        <button class="btn btn-sm btn-danger"
+                                                @onclick="() => DeleteReservationAsync(r.Id)">
+                                            Usuń
+                                        </button>
+                                    }
+
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>Brak uprawnień do podglądu rezerwacji.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool _isLoaded;
+    private string? _error;
+    private string? _success;
+    private Dictionary<string, string> _userEmails = new();
+
+    private List<Reservation> _reservations = new();
+
+    private int? _reservationIdToCancel;
+    private string? _reservationTitleToCancel;
+    private string? _cancellationReasonToSet;
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _reservations = await ReservationService.GetAllReservationsAsync();
+
+        // zbieramy unikalne UserId z rezerwacji
+        var userIds = _reservations
+            .Select(r => r.UserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct()
+            .ToList();
+
+        // budujemy mapę UserId -> Email
+        _userEmails = new Dictionary<string, string>();
+
+        foreach (var id in userIds)
+        {
+            var user = await UserManager.FindByIdAsync(id);
+            _userEmails[id] = user?.Email ?? id; // fallback: jak nie ma emaila, pokaż Id
+        }
+
+        _isLoaded = true;
+    }
+
+    private string GetStatusText(Reservation r)
+    {
+        return r.Status switch
+        {
+            ReservationStatus.Created => "Oczekuje na przygotowanie",
+            ReservationStatus.Prepared => "Gotowa do odbioru",
+            ReservationStatus.PickedUp => "Wydana czytelnikowi",
+            ReservationStatus.Cancelled => "Anulowana",
+            ReservationStatus.Returned => "Zwrócona do biblioteki",
+            _ => r.Status.ToString()
+        };
+    }
+
+    private string GetUserEmail(string userId)
+    {
+        if (_userEmails.TryGetValue(userId, out var email))
+            return email;
+
+        return userId;
+    }
+
+    private async Task MarkPickedUpAsync(int reservationId)
+    {
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationMediator.MarkPickedUpAsync(reservationId);
+
+        if (!ok)
+        {
+            _error = "Nie udało się oznaczyć rezerwacji jako wydanej.";
+        }
+        else
+        {
+            _success = "Rezerwacja oznaczona jako wydana.";
+            _reservations = await ReservationService.GetAllReservationsAsync();
+        }
+    }
+
+    private async Task MarkReturnedAsync(int reservationId)
+    {
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationMediator.MarkReturnedAsync(reservationId);
+
+        if (!ok)
+        {
+            _error = "Nie udało się oznaczyć rezerwacji jako zwróconej.";
+        }
+        else
+        {
+            _success = "Rezerwacja oznaczona jako zwrócona. Książka znów dostępna.";
+            _reservations = await ReservationService.GetAllReservationsAsync();
+        }
+    }
+
+    private bool CanMarkPrepared(Reservation r)
+        => r.Status == ReservationStatus.Created;
+
+    private bool CanMarkPickedUp(Reservation r)
+        => r.Status == ReservationStatus.Prepared;
+
+    private bool CanCancelFromAdmin(Reservation r)
+        => r.Status == ReservationStatus.Created || r.Status == ReservationStatus.Prepared;
+
+    private bool CanDelete(Reservation r)
+        => r.Status == ReservationStatus.Cancelled
+        || r.Status == ReservationStatus.PickedUp;
+
+    private bool CanMarkReturned(Reservation r)
+    => r.Status == ReservationStatus.PickedUp;
+
+    private async Task SetStatusAsync(int reservationId, ReservationStatus newStatus)
+    {
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationService.ChangeStatusAsync(reservationId, newStatus);
+
+        if (!ok)
+        {
+            _error = "Nie udało się zmienić statusu rezerwacji.";
+        }
+        else
+        {
+            _success = "Status rezerwacji został zaktualizowany.";
+            _reservations = await ReservationService.GetAllReservationsAsync();
+        }
+    }
+
+    private async Task MarkPreparedAsync(int reservationId)
+    {
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationMediator.MarkPreparedAsync(reservationId);
+
+        if (!ok)
+        {
+            _error = "Nie udało się oznaczyć rezerwacji jako gotowej do odbioru.";
+        }
+        else
+        {
+            _success = "Rezerwacja oznaczona jako gotowa do odbioru. Czytelnik otrzyma powiadomienie.";
+            _reservations = await ReservationService.GetAllReservationsAsync();
+        }
+    }
+
+    private void AskCancel(Reservation r)
+    {
+        _reservationIdToCancel = r.Id;
+        _reservationTitleToCancel = r.Book?.Title;
+        _cancellationReasonToSet = "";
+        _error = null;
+        _success = null;
+    }
+
+    private void CancelCancel()
+    {
+        _reservationIdToCancel = null;
+        _reservationTitleToCancel = null;
+        _cancellationReasonToSet = null;
+    }
+
+    private async Task ConfirmCancelAsync()
+    {
+        if (!_reservationIdToCancel.HasValue)
+            return;
+
+        if (string.IsNullOrWhiteSpace(_cancellationReasonToSet))
+        {
+            _error = "Podaj powód anulowania rezerwacji.";
+            return;
+        }
+
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationMediator.CancelByEmployeeAsync(
+            _reservationIdToCancel.Value,
+            _cancellationReasonToSet);
+
+        if (!ok)
+        {
+            _error = "Nie udało się anulować rezerwacji.";
+        }
+        else
+        {
+            _success = "Rezerwacja została anulowana.";
+        }
+
+        _reservationIdToCancel = null;
+        _reservationTitleToCancel = null;
+        _cancellationReasonToSet = null;
+
+        _reservations = await ReservationService.GetAllReservationsAsync();
+    }
+
+    private async Task DeleteReservationAsync(int reservationId)
+    {
+        _error = null;
+        _success = null;
+
+        var ok = await ReservationService.DeleteReservationAsync(reservationId);
+
+        if (!ok)
+        {
+            _error = "Nie udało się usunąć rezerwacji.";
+        }
+        else
+        {
+            _success = "Rezerwacja została usunięta.";
+            _reservations = await ReservationService.GetAllReservationsAsync();
+        }
+    }
+
+
+    
+
+}

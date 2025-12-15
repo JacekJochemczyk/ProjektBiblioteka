@@ -1,0 +1,710 @@
+﻿@page "/books"
+
+@rendermode InteractiveServer
+@using Biblioteka.Infrastructure
+@using Biblioteka.Domain
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.ComponentModel.DataAnnotations
+@using System.Linq
+@using System.Security.Claims
+@inject LibraryDbContext Db
+@inject IReservationMediator ReservationMediator
+
+<PageTitle>Książki</PageTitle>
+
+<h3>Książki w bibliotece</h3>
+
+@if (_isEmployee)
+{
+    <div class="mb-3 d-flex gap-2">
+        <button class="btn btn-secondary" @onclick="ToggleAddForm">
+            @(_showAddForm ? "Ukryj formularz dodawania" : "Dodaj książkę")
+        </button>
+
+        <button class="btn btn-secondary" @onclick="ToggleManageForm">
+            @(_showManageForm ? "Ukryj edycję / usuwanie" : "Edytuj / usuń książkę")
+        </button>
+
+        <button class="btn btn-secondary" @onclick="ToggleCategoryForm">
+            @(_showCategoryForm ? "Ukryj kategorie" : "Kategorie")
+        </button>
+    </div>
+
+    @if (_showAddForm)
+    {
+        <h4>Dodaj nową książkę</h4>
+
+        <EditForm Model="_newBook" OnValidSubmit="HandleAddBook" formname="addBookForm">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label>Tytuł</label>
+                    <InputText class="form-control" @bind-Value="_newBook.Title" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>Autor</label>
+                    <InputText class="form-control" @bind-Value="_newBook.Author" />
+                </div>
+
+                <div class="col-md-2 mb-3">
+                    <label>Rok wydania</label>
+                    <InputNumber class="form-control" @bind-Value="_newBook.YearPublished" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label>Kategoria</label>
+                    <InputSelect class="form-control" @bind-Value="_newBook.BookCategoryId">
+                        <option value="">-- wybierz --</option>
+                        @foreach (var cat in _categories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Dodaj książkę</button>
+        </EditForm>
+
+        <hr />
+    }
+
+    @if (_showManageForm)
+    {
+        <h4>Edytuj / usuń książkę</h4>
+
+        <div class="mb-3">
+            <label>Wybierz książkę</label>
+            <select class="form-select" @onchange="OnSelectedBookChanged">
+                <option value="">-- wybierz książkę --</option>
+                @if (_books is not null)
+                {
+                    @foreach (var b in _books)
+                    {
+                        <option value="@b.Id">@($"{b.Title} - {b.Author}")</option>
+                    }
+                }
+            </select>
+        </div>
+
+        @if (_editBook.Id > 0)
+        {
+            <EditForm Model="_editBook" OnValidSubmit="HandleUpdateBook" formname="editBookForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label>Tytuł</label>
+                        <InputText class="form-control" @bind-Value="_editBook.Title" />
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Autor</label>
+                        <InputText class="form-control" @bind-Value="_editBook.Author" />
+                    </div>
+
+                    <div class="col-md-2 mb-3">
+                        <label>Rok wydania</label>
+                        <InputNumber class="form-control" @bind-Value="_editBook.YearPublished" />
+                    </div>
+
+                    <div class="col-md-4 mb-3">
+                        <label>Kategoria</label>
+                        <InputSelect class="form-control" @bind-Value="_editBook.BookCategoryId">
+                            <option value="">-- wybierz --</option>
+                            @foreach (var cat in _categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary me-2" type="submit">Zapisz zmiany</button>
+                <button class="btn btn-danger" type="button" @onclick="HandleDeleteBook">Usuń książkę</button>
+            </EditForm>
+
+            <hr />
+        }
+
+
+    }
+
+    @if (_showCategoryForm)
+    {
+        <h4>Zarządzanie kategoriami</h4>
+
+        <div class="mb-3">
+            <label>Wybierz kategorię do edycji (lub zostaw puste, aby dodać nową)</label>
+            <select class="form-select" @onchange="OnSelectedCategoryChanged">
+                <option value="">-- nowa kategoria --</option>
+                @foreach (var cat in _categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </select>
+        </div>
+
+        <EditForm Model="_categoryEdit" OnValidSubmit="HandleSaveCategory" formname="categoryForm">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label>Nazwa kategorii</label>
+                <InputText class="form-control" @bind-Value="_categoryEdit.Name" />
+            </div>
+
+            <button class="btn btn-primary me-2" type="submit">
+                @(_categoryEdit.Id == 0 ? "Dodaj kategorię" : "Zapisz zmiany")
+            </button>
+
+            @if (_categoryEdit.Id != 0)
+            {
+                <button class="btn btn-danger" type="button" @onclick="HandleDeleteCategory">
+                    Usuń kategorię
+                </button>
+            }
+        </EditForm>
+
+        <hr />
+    }
+}
+
+
+<div class="row g-2 mb-3">
+    <div class="col-md-6">
+        <label>Szukaj (tytuł lub autor)</label>
+        <InputText class="form-control"
+                   @bind-Value="_searchTerm"
+                   placeholder="Wpisz część tytułu lub nazwisko autora..." />
+    </div>
+
+    <div class="col-md-4">
+        <label>Kategoria</label>
+        <InputSelect class="form-control" @bind-Value="_searchCategoryId">
+            <option value="">Wszystkie</option>
+            @foreach (var cat in _categories)
+            {
+                <option value="@cat.Id">@cat.Name</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-outline-secondary w-100" type="button" @onclick="ClearFilters">
+            Wyczyść
+        </button>
+    </div>
+</div>
+
+@if (_bookIdToConfirm.HasValue)
+{
+    <div class="alert alert-warning d-flex justify-content-between align-items-center">
+        <div>
+            Czy na pewno chcesz zarezerwować książkę
+            <strong>@_bookTitleToConfirm</strong>?
+            <br />
+            Po zarezerwowaniu masz <strong>72 godziny</strong> na odbiór książki z biblioteki.
+            Po tym czasie rezerwacja przepada.
+        </div>
+        <div>
+            <button class="btn btn-sm btn-primary me-2" @onclick="ConfirmReservationAsync">
+                Tak, rezerwuję
+            </button>
+            <button class="btn btn-sm btn-secondary" @onclick="CancelReservationConfirmation">
+                Anuluj
+            </button>
+        </div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_reservationError))
+{
+    <div class="alert alert-danger">@_reservationError</div>
+}
+@if (!string.IsNullOrEmpty(_reservationSuccess))
+{
+    <div class="alert alert-success">@_reservationSuccess</div>
+}
+
+
+
+@if (_books is null)
+{
+    <p>Ładowanie...</p>
+}
+else
+{
+    var anyFiltered = FilteredBooksForList.Any();
+
+    if (!anyFiltered)
+    {
+        <p>Brak książek dla podanych filtrów.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tytuł</th>
+                    <th>Autor</th>
+                    <th>Kategoria</th>
+                    <th>Rok wydania</th>
+                    <th>Status</th>
+                    <th>Rezerwacja do</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in FilteredBooksForList)
+                {
+                    <tr>
+                        <td>@b.Title</td>
+                        <td>@b.Author</td>
+                        <td>@(b.Category?.Name ?? "-")</td>
+                        <td>@b.YearPublished</td>
+                        <td>@GetStatusText(b)</td>
+                        <td>
+                            @if (ShouldShowReserveButton(b))
+                            {
+                                <button class="btn btn-sm btn-outline-primary" type="button"
+                                        @onclick="() => ConfirmReserve(b.Id)">
+                                    Zarezerwuj
+                                </button>
+                            }
+                            else
+                            {
+                                @GetReservationInfo(b)
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+
+@code {
+    private List<Book>? _books;
+    private List<BookCategory> _categories = new();
+    private bool _isEmployee;
+
+    private bool _isReader;
+    private bool _isLoggedIn;
+    private string? _currentUserId;
+
+    // do potwierdzenia rezerwacji + komunikaty
+    private int? _bookIdToConfirm;
+    private string? _bookTitleToConfirm;
+    private string? _reservationError;
+    private string? _reservationSuccess;
+
+    private bool _showAddForm; // czy formularz ma być rozwinięty
+
+    private bool _showManageForm;          // czy sekcja "Edytuj/Usuń" jest rozwinięta
+    private EditBookModel _editBook = new(); // model edycji wybranej książki
+    private NewBookModel _newBook = new(); // model do formularza "Dodaj książkę"
+
+    private string _searchTerm = string.Empty;   // tekst wyszukiwania (tytuł/autor)
+    private int? _searchCategoryId = null;       // wybrana kategoria (lub null = wszystkie)
+
+    private bool _showCategoryForm;           // czy sekcja kategorii jest rozwinięta
+    private CategoryEditModel _categoryEdit = new();  // model edycji / dodawania kategorii
+
+
+    // Blazor wstrzykuje tu aktualny stan uwierzytelnienia
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1) sprawdzamy, kto jest zalogowany
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        _isLoggedIn = user.Identity?.IsAuthenticated ?? false;
+        _isEmployee = user.IsInRole("Employee");
+        _isReader = user.IsInRole("User");   // zwykły czytelnik
+
+        _currentUserId = _isLoggedIn
+            ? user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            : null;
+
+
+        // 2) ładujemy kategorie (do dropdowna)
+        _categories = await Db.BookCategories
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        // 3) ładujemy książki 
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+    }
+
+    private IEnumerable<Book> FilteredBooksForList =>
+    _books is null
+        ? Enumerable.Empty<Book>()
+        : _books.Where(b =>
+            // filtr tekstowy
+            (string.IsNullOrWhiteSpace(_searchTerm) ||
+             (b.Title?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false) ||
+             (b.Author?.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ?? false))
+            &&
+            // filtr kategorii
+            (!_searchCategoryId.HasValue || b.BookCategoryId == _searchCategoryId.Value)
+        );
+
+
+    private bool ShouldShowReserveButton(Book b)
+    {
+        // przycisk tylko dla zalogowanego CZYTELNIKA (rola "User")
+        if (!_isLoggedIn || !_isReader)
+            return false;
+
+        // pracownik NIE może rezerwować książek
+        if (_isEmployee)
+            return false;
+
+        // tylko jeśli książka jest dostępna
+        if (!b.IsAvailable)
+            return false;
+
+        return true;
+    }
+
+    private string GetStatusText(Book b)
+    {
+        if (b.IsAvailable)
+            return "Dostępna";
+
+        if (!b.IsAvailable && b.ReservedUntil.HasValue)
+            return "Zarezerwowana";
+
+        // później, gdy dodamy wypożyczanie, tu wkleimy "Wypożyczona"
+        return "Niedostępna";
+    }
+
+    private string GetReservationInfo(Book b)
+    {
+        if (!b.IsAvailable && b.ReservedUntil.HasValue)
+            return b.ReservedUntil.Value.ToString("yyyy-MM-dd HH:mm");
+
+        return "-";
+    }
+
+    private void ConfirmReserve(int bookId)
+    {
+        if (_books is null)
+            return;
+
+        var book = _books.FirstOrDefault(b => b.Id == bookId);
+        if (book is null)
+            return;
+
+        _reservationError = null;
+        _reservationSuccess = null;
+
+        _bookIdToConfirm = bookId;
+        _bookTitleToConfirm = book.Title;
+    }
+
+    private void CancelReservationConfirmation()
+    {
+        _bookIdToConfirm = null;
+        _bookTitleToConfirm = null;
+    }
+
+    private async Task ConfirmReservationAsync()
+    {
+        if (!_bookIdToConfirm.HasValue ||
+            !_isLoggedIn ||
+            !_isReader ||        // tylko czytelnik
+            _isEmployee ||       // pracownik nie
+            string.IsNullOrEmpty(_currentUserId))
+        {
+            return;
+        }
+
+        _reservationError = null;
+        _reservationSuccess = null;
+
+        // 72h rezerwacji
+        var reservation = await ReservationMediator.ReserveAsync(
+        _bookIdToConfirm.Value,
+        _currentUserId!);
+            TimeSpan.FromHours(72);
+
+        if (reservation is null)
+        {
+            _reservationError = "Nie udało się utworzyć rezerwacji. Książka może być już zarezerwowana.";
+        }
+        else
+        {
+            _reservationSuccess = "Książka została zarezerwowana. Masz 72 godziny na odbiór w bibliotece.";
+        }
+
+        // czyścimy stan potwierdzenia
+        _bookIdToConfirm = null;
+        _bookTitleToConfirm = null;
+
+        // odświeżamy listę książek (żeby status / przyciski się zaktualizowały)
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+    }
+
+
+
+
+    private void ToggleAddForm()
+    {
+        _showAddForm = !_showAddForm;
+    }
+
+    private void ClearFilters()
+    {
+        _searchTerm = string.Empty;
+        _searchCategoryId = null;
+    }
+
+    private void ToggleManageForm()
+    {
+        _showManageForm = !_showManageForm;
+    }
+
+    private void ToggleCategoryForm()
+    {
+        _showCategoryForm = !_showCategoryForm;
+    }
+
+
+    private void OnSelectedBookChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+        {
+            // nic nie wybrane -> czyścimy model edycji
+            _editBook = new();
+            return;
+        }
+
+        var book = _books?.FirstOrDefault(b => b.Id == id);
+        if (book is null)
+        {
+            _editBook = new();
+            return;
+        }
+
+        _editBook.Id = book.Id;
+        _editBook.Title = book.Title;
+        _editBook.Author = book.Author;
+        _editBook.YearPublished = book.YearPublished;
+        _editBook.BookCategoryId = book.BookCategoryId;
+    }
+
+    private void OnSelectedCategoryChanged(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var id))
+        {
+            // jeśli nic nie wybrane -> przygotuj model "nowa kategoria"
+            _categoryEdit = new CategoryEditModel();
+            return;
+        }
+
+        var cat = _categories.FirstOrDefault(c => c.Id == id);
+        if (cat is null)
+        {
+            _categoryEdit = new CategoryEditModel();
+            return;
+        }
+
+        _categoryEdit.Id = cat.Id;
+        _categoryEdit.Name = cat.Name;
+    }
+
+    private async Task HandleSaveCategory()
+    {
+        if (!_isEmployee)
+            return;
+
+        if (string.IsNullOrWhiteSpace(_categoryEdit.Name))
+            return;
+
+        // Nowa kategoria
+        if (_categoryEdit.Id == 0)
+        {
+            var newCat = new BookCategory { Name = _categoryEdit.Name.Trim() };
+            Db.BookCategories.Add(newCat);
+            await Db.SaveChangesAsync();
+        }
+        else // Edycja istniejącej
+        {
+            var cat = await Db.BookCategories.FindAsync(_categoryEdit.Id);
+            if (cat is null)
+                return;
+
+            cat.Name = _categoryEdit.Name.Trim();
+            await Db.SaveChangesAsync();
+        }
+
+        // odśwież listę kategorii
+        _categories = await Db.BookCategories
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        // wyczyszczenie modelu (nowa kategoria)
+        _categoryEdit = new CategoryEditModel();
+    }
+
+    private async Task HandleDeleteCategory()
+    {
+        if (!_isEmployee || _categoryEdit.Id == 0)
+            return;
+
+        var cat = await Db.BookCategories.FindAsync(_categoryEdit.Id);
+        if (cat is null)
+            return;
+
+        Db.BookCategories.Remove(cat);
+        await Db.SaveChangesAsync();
+
+        // odśwież listę kategorii
+        _categories = await Db.BookCategories
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        _categoryEdit = new CategoryEditModel();
+    }
+
+
+
+    private async Task HandleAddBook()
+    {
+        // dodatkowe zabezpieczenie, gdyby ktoś ręcznie wysłał formularz
+        if (!_isEmployee)
+            return;
+
+        var book = new Book
+        {
+            Title = _newBook.Title,
+            Author = _newBook.Author,
+            YearPublished = _newBook.YearPublished,
+            BookCategoryId = _newBook.BookCategoryId,
+            IsAvailable = true
+        };
+
+        Db.Books.Add(book);
+        await Db.SaveChangesAsync();
+
+        // odśwież listę książek
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+
+        // wyczyść formularz
+        _newBook = new();
+    }
+
+    private async Task HandleUpdateBook()
+    {
+        if (!_isEmployee || _editBook.Id == 0)
+            return;
+
+        var book = await Db.Books.FindAsync(_editBook.Id);
+        if (book is null)
+            return;
+
+        book.Title = _editBook.Title;
+        book.Author = _editBook.Author;
+        book.YearPublished = _editBook.YearPublished;
+        book.BookCategoryId = _editBook.BookCategoryId;
+
+        await Db.SaveChangesAsync();
+
+        // odśwież listę książek
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+    }
+
+    private async Task HandleDeleteBook()
+    {
+        if (!_isEmployee || _editBook.Id == 0)
+            return;
+
+        var book = await Db.Books.FindAsync(_editBook.Id);
+        if (book is null)
+            return;
+
+        Db.Books.Remove(book);
+        await Db.SaveChangesAsync();
+
+        // czyścimy model edycji i odświeżamy listę
+        _editBook = new();
+
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+    }
+
+    private class NewBookModel
+    {
+        [Required]
+        [MaxLength(200)]
+        public string Title { get; set; } = "";
+
+        [Required]
+        [MaxLength(200)]
+        public string Author { get; set; } = "";
+
+        [Range(1400, 2100)]
+        public int YearPublished { get; set; } = DateTime.Now.Year;
+
+        [Required(ErrorMessage = "Wybierz kategorię")]
+        public int? BookCategoryId { get; set; }
+    }
+
+    private class EditBookModel
+    {
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(200)]
+        public string Title { get; set; } = "";
+
+        [Required]
+        [MaxLength(200)]
+        public string Author { get; set; } = "";
+
+        [Range(1400, 2100)]
+        public int YearPublished { get; set; } = DateTime.Now.Year;
+
+        [Required(ErrorMessage = "Wybierz kategorię")]
+        public int? BookCategoryId { get; set; }
+    }
+
+    private class CategoryEditModel
+    {
+        public int Id { get; set; }
+
+        [Required]
+        [MaxLength(100)]
+        public string Name { get; set; } = "";
+    }
+
+}

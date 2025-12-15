@@ -1,0 +1,17 @@
+﻿@page "/logout"
+@rendermode InteractiveServer
+@using Biblioteka.Infrastructure.Auth
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<AppUser> SignInManager
+@inject NavigationManager Nav
+
+<p>Wylogowywanie...</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await SignInManager.SignOutAsync();
+
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}
