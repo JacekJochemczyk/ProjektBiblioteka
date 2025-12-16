@@ -62,9 +62,11 @@
                     </span>
                 </div>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="logout">
-                        Wyloguj
-                    </NavLink>
+                    <form method="post" action="/auth/logout" class="m-0">
+                        <button type="submit" class="nav-link btn btn-link p-0">
+                            Wyloguj
+                        </button>
+                    </form>
                 </div>
             </Authorized>
             <NotAuthorized>

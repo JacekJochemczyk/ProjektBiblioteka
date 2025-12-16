@@ -60,6 +60,8 @@ namespace Biblioteka
             // Blazor potrzebuje AuthenticationState w drzewie komponentów
             builder.Services.AddCascadingAuthenticationState();
 
+            builder.Services.AddSingleton<ILibraryRules, LibraryRules>();
+
 
             var app = builder.Build();
 
@@ -152,6 +154,14 @@ namespace Biblioteka
                 // sukces -> na stronê g³ówn¹
                 return Results.LocalRedirect("/");
             }).DisableAntiforgery(); // logowanie wy³¹czamy z antyforgery
+
+            app.MapPost("/auth/logout", async (
+                SignInManager<AppUser> signInManager) =>
+            {
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/");
+            }).DisableAntiforgery();
+
 
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();

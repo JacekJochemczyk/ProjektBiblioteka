@@ -15,15 +15,19 @@ namespace Biblioteka.Infrastructure.Services
     {
         private readonly LibraryDbContext _db;
 
-        public ReservationService(LibraryDbContext db)
+        private readonly ILibraryRules _libraryRules;
+
+        public ReservationService(
+            LibraryDbContext db,
+            ILibraryRules libraryRules)
         {
             _db = db;
+            _libraryRules = libraryRules;
         }
 
         public async Task<Reservation?> CreateReservationAsync(
             int bookId,
             string userId,
-            TimeSpan duration,
             CancellationToken ct = default)
         {
             // pobierz książkę razem z istniejącymi rezerwacjami
@@ -44,7 +48,8 @@ namespace Biblioteka.Infrastructure.Services
             }
 
             // Simple Factory – tworzy poprawnie wypełnioną rezerwację
-            var reservation = ReservationFactory.Create(bookId, userId, duration);
+            var reservedUntil = _libraryRules.CalculatePickupDeadline(DateTime.Now);
+            var reservation = ReservationFactory.Create(bookId, userId, reservedUntil);
 
             // oznaczamy książkę jako niedostępną + ustawiamy datę rezerwacji
             book.IsAvailable = false;

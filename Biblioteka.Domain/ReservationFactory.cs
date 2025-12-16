@@ -8,16 +8,14 @@ namespace Biblioteka.Domain
 {
     public static class ReservationFactory
     {
-        public static Reservation Create(int bookId, string userId, TimeSpan duration, DateTime? nowUtc = null)
+        public static Reservation Create(int bookId, string userId, DateTime reservedUntil)
         {
-            var now = nowUtc ?? DateTime.UtcNow;
-
             return new Reservation
             {
                 BookId = bookId,
                 UserId = userId,
-                CreatedAt = now,
-                ReservedUntil = now.Add(duration),
+                CreatedAt = DateTime.UtcNow,
+                ReservedUntil = reservedUntil,
                 Status = ReservationStatus.Created,
                 CancellationReason = null
             };

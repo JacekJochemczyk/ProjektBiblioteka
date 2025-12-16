@@ -209,7 +209,9 @@
             Czy na pewno chcesz zarezerwować książkę
             <strong>@_bookTitleToConfirm</strong>?
             <br />
-            Po zarezerwowaniu masz <strong>72 godziny</strong> na odbiór książki z biblioteki.
+            Po zarezerwowaniu masz czas do końca
+            <strong>drugiego następnego dnia roboczego</strong>
+            (do godziny <strong>18:00</strong>) na odbiór książki z biblioteki.
             Po tym czasie rezerwacja przepada.
         </div>
         <div>
@@ -297,6 +299,8 @@ else
     private bool _isReader;
     private bool _isLoggedIn;
     private string? _currentUserId;
+
+    private DateTime? _reservedUntilPreview;
 
     // do potwierdzenia rezerwacji + komunikaty
     private int? _bookIdToConfirm;
@@ -420,6 +424,7 @@ else
     {
         _bookIdToConfirm = null;
         _bookTitleToConfirm = null;
+        _reservedUntilPreview = null;
     }
 
     private async Task ConfirmReservationAsync()
@@ -436,7 +441,7 @@ else
         _reservationError = null;
         _reservationSuccess = null;
 
-        // 72h rezerwacji
+        
         var reservation = await ReservationMediator.ReserveAsync(
         _bookIdToConfirm.Value,
         _currentUserId!);
@@ -448,12 +453,17 @@ else
         }
         else
         {
-            _reservationSuccess = "Książka została zarezerwowana. Masz 72 godziny na odbiór w bibliotece.";
+            _reservedUntilPreview = reservation.ReservedUntil;
+
+            _reservationSuccess =
+                $"Książka została zarezerwowana. " +
+                $"Masz czas na odbiór do {_reservedUntilPreview:dddd, dd.MM.yyyy HH:mm}.";
         }
 
         // czyścimy stan potwierdzenia
         _bookIdToConfirm = null;
         _bookTitleToConfirm = null;
+        _reservedUntilPreview = null;
 
         // odświeżamy listę książek (żeby status / przyciski się zaktualizowały)
         _books = await Db.Books

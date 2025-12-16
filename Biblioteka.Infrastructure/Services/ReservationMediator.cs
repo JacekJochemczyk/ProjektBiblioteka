@@ -38,7 +38,7 @@ namespace Biblioteka.Infrastructure.Services
             var reservation = await _reservationService.CreateReservationAsync(
                 bookId,
                 userId,
-                TimeSpan.FromHours(72), // później łatwo tu podpiąć Singleton z ustawieniami
+                 // później łatwo tu podpiąć Singleton z ustawieniami
                 ct);
 
             if (reservation is null)
