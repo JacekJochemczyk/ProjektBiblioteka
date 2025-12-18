@@ -31,5 +31,13 @@ namespace Biblioteka.Domain
         // Kiedy powiadomienie zostało utworzone (UTC).
         
         public DateTime CreatedAt { get; set; }
+
+        public NotificationType Type { get; set; } = NotificationType.General;
+
+        // opcjonalnie: docelowy rekord (np. ReservationId)
+        public int? RelatedId { get; set; }
+
+        // opcjonalnie: dodatkowy URL jeśli kiedyś zechcesz
+        public string? TargetUrl { get; set; }
     }
 }

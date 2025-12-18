@@ -1,6 +1,13 @@
-﻿namespace Biblioteka
-{
-    public class _
-    {
-    }
-}
+﻿# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Visual Studio
+.vs/
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo

@@ -111,6 +111,9 @@ namespace Biblioteka.Infrastructure
                     .IsRequired()
                     .HasMaxLength(500); // na razie wystarczy
 
+                n.Property(x => x.Type)   // ⬅️ NOWE
+                    .IsRequired();
+
                 n.Property(x => x.IsRead)
                     .HasDefaultValue(false);
 
