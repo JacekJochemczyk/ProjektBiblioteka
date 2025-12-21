@@ -227,7 +227,7 @@ Z tego korzysta logika rezerwacji do wyliczania `ReservedUntil`:
 
 ---
 
-# Dodatkowe elementy funkcjonalne (bonus)
+# Dodatkowe elementy funkcjonalne 
 
 - Powiadomienia (dropdown w dzwonku) w `MainLayout.razor`
 - Archiwizacja książek (alternatywa dla usuwania, gdy istnieje historia rezerwacji)
