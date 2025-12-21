@@ -33,7 +33,7 @@ namespace Biblioteka.Infrastructure.Services
             // pobierz książkę razem z istniejącymi rezerwacjami
             var book = await _db.Books
                 .Include(b => b.Reservations)
-                .FirstOrDefaultAsync(b => b.Id == bookId, ct);
+                .FirstOrDefaultAsync(b => b.Id == bookId && !b.IsArchived, ct);
 
             if (book is null)
             {

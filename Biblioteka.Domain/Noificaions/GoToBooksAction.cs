@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Biblioteka.Domain.Noificaions
+namespace Biblioteka.Domain.Notificaions
 {
     public sealed class GoToBooksAction : NotificationActionBase
     {

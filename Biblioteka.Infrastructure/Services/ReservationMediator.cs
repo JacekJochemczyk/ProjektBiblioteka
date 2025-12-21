@@ -1,9 +1,6 @@
 ﻿using Biblioteka.Domain;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Biblioteka.Infrastructure.Services
@@ -38,19 +35,17 @@ namespace Biblioteka.Infrastructure.Services
             var reservation = await _reservationService.CreateReservationAsync(
                 bookId,
                 userId,
-                 // później łatwo tu podpiąć Singleton z ustawieniami
                 ct);
 
             if (reservation is null)
                 return null;
 
             // 2. Pobieramy tytuł książki do treści powiadomienia
-            var book = await _db.Books
+            var title = await _db.Books
                 .Where(b => b.Id == reservation.BookId)
-                .Select(b => new { b.Title })
-                .FirstOrDefaultAsync(ct);
-
-            var title = book?.Title ?? "nieznana książka";
+                .Select(b => b.Title)
+                .FirstOrDefaultAsync(ct)
+                ?? "nieznana książka";
 
             // 3. Powiadamiamy wszystkich pracowników
             await _notificationService.AddForEmployeesAsync(
@@ -83,9 +78,8 @@ namespace Biblioteka.Infrastructure.Services
             var title = reservation.Book?.Title ?? "nieznana książka";
 
             // powiadamiamy czytelnika, że książka jest gotowa do odbioru
-            await _notificationService.AddAsync(
-                reservation.UserId,
-                $"Książka „{title}” jest gotowa do odbioru w bibliotece.",
+            await _notificationService.AddForEmployeesAsync(
+                $"Nowa rezerwacja książki „{title}”.",
                 ct);
 
             return true;

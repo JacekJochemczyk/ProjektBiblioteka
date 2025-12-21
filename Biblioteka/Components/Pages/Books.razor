@@ -91,6 +91,11 @@
             </select>
         </div>
 
+        @if (!string.IsNullOrEmpty(_deleteBookError))
+        {
+            <div class="alert alert-danger">@_deleteBookError</div>
+        }
+        
         @if (_editBook.Id > 0)
         {
             <EditForm Model="_editBook" OnValidSubmit="HandleUpdateBook" formname="editBookForm">
@@ -126,7 +131,14 @@
                 </div>
 
                 <button class="btn btn-primary me-2" type="submit">Zapisz zmiany</button>
-                <button class="btn btn-danger" type="button" @onclick="HandleDeleteBook">Usuń książkę</button>
+
+                <button class="btn btn-warning me-2" type="button" @onclick="HandleArchiveBook">
+                    Archiwizuj
+                </button>
+
+                <button class="btn btn-danger" type="button" @onclick="HandleDeleteBook">
+                    Usuń książkę
+                </button>
             </EditForm>
 
             <hr />
@@ -162,6 +174,7 @@
             <button class="btn btn-primary me-2" type="submit">
                 @(_categoryEdit.Id == 0 ? "Dodaj kategorię" : "Zapisz zmiany")
             </button>
+            
 
             @if (_categoryEdit.Id != 0)
             {
@@ -302,6 +315,8 @@ else
 
     private DateTime? _reservedUntilPreview;
 
+    private string? _deleteBookError;
+
     // do potwierdzenia rezerwacji + komunikaty
     private int? _bookIdToConfirm;
     private string? _bookTitleToConfirm;
@@ -347,6 +362,7 @@ else
 
         // 3) ładujemy książki 
         _books = await Db.Books
+		    .Where(b => !b.IsArchived)
             .Include(b => b.Category)
             .OrderBy(b => b.Author)
             .ThenBy(b => b.Title)
@@ -467,6 +483,7 @@ else
 
         // odświeżamy listę książek (żeby status / przyciski się zaktualizowały)
         _books = await Db.Books
+            .Where(b => !b.IsArchived)
             .Include(b => b.Category)
             .OrderBy(b => b.Author)
             .ThenBy(b => b.Title)
@@ -617,6 +634,7 @@ else
 
         // odśwież listę książek
         _books = await Db.Books
+            .Where(b => !b.IsArchived)
             .Include(b => b.Category)
             .OrderBy(b => b.Author)
             .ThenBy(b => b.Title)
@@ -644,6 +662,7 @@ else
 
         // odśwież listę książek
         _books = await Db.Books
+            .Where(b => !b.IsArchived)
             .Include(b => b.Category)
             .OrderBy(b => b.Author)
             .ThenBy(b => b.Title)
@@ -655,17 +674,72 @@ else
         if (!_isEmployee || _editBook.Id == 0)
             return;
 
+        _deleteBookError = null;
+
+        try
+        {
+            var bookId = _editBook.Id;
+
+            // 1) Czy ta książka ma jakiekolwiek rezerwacje (nawet stare)?
+            var hasAnyReservations = await Db.Reservations.AnyAsync(r => r.BookId == bookId);
+
+            if (hasAnyReservations)
+            {
+                _deleteBookError = "Nie można usunąć tej książki, ponieważ istnieją powiązane rezerwacje (historia). " +
+                                   "Zamiast tego możesz ją zarchiwizować.";
+                return;
+            }
+
+            // 2) Usuń książkę
+            var book = await Db.Books.FindAsync(bookId);
+            if (book is null)
+                return;
+
+            Db.Books.Remove(book);
+            await Db.SaveChangesAsync();
+
+            // 3) Wyczyść model + odśwież listę
+            _editBook = new();
+
+            _books = await Db.Books
+			    .Where(b => !b.IsArchived)
+                .Include(b => b.Category)
+                .OrderBy(b => b.Author)
+                .ThenBy(b => b.Title)
+                .ToListAsync();
+        }
+        catch (DbUpdateException)
+        {
+            _deleteBookError = "Nie udało się usunąć książki (błąd bazy danych). " +
+                               "Najczęściej oznacza to powiązane rekordy (np. rezerwacje).";
+        }
+    }
+
+    private async Task HandleArchiveBook()
+    {
+        if (!_isEmployee || _editBook.Id == 0)
+            return;
+
+        _deleteBookError = null;
+
         var book = await Db.Books.FindAsync(_editBook.Id);
         if (book is null)
             return;
 
-        Db.Books.Remove(book);
+        // archiwizacja = ukrycie książki z /books
+        book.IsArchived = true;
+
+        // bezpieczeństwo: archiwalna książka nie powinna wisieć jako „zarezerwowana”
+        book.IsAvailable = false;
+        book.ReservedUntil = null;
+
         await Db.SaveChangesAsync();
 
-        // czyścimy model edycji i odświeżamy listę
+        // czyścimy edycję i odświeżamy listę (archiwalna zniknie z dropdowna i tabeli)
         _editBook = new();
 
         _books = await Db.Books
+            .Where(b => !b.IsArchived)
             .Include(b => b.Category)
             .OrderBy(b => b.Author)
             .ThenBy(b => b.Title)

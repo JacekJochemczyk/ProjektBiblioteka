@@ -1,0 +1,149 @@
+﻿@page "/admin/books-report"
+@rendermode InteractiveServer
+
+@using Biblioteka.Domain
+@using Biblioteka.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using Biblioteka.Domain.Interpreter
+
+@inject LibraryDbContext Db
+
+<h3>Raport książek – panel pracownika</h3>
+
+<AuthorizeView Roles="Employee">
+    <Authorized>
+        
+        <div class="row g-2 mb-3">
+            <div class="col-md-5">
+                <label>Szukaj (tytuł lub autor)</label>
+                <InputText class="form-control" @bind-Value="_searchText" />
+            </div>
+
+            <div class="col-md-4">
+                <label>Kategoria</label>
+                <InputSelect class="form-control" @bind-Value="_categoryId">
+                    <option value="">Wszystkie</option>
+                    @foreach (var c in _categories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </InputSelect>
+            </div>
+
+            <div class="col-md-3">
+                <label>Status</label>
+                <InputSelect class="form-control" @bind-Value="_status">
+                    <option value="all">Wszystkie</option>
+                    <option value="available">Dostępne</option>
+                    <option value="reserved">Zarezerwowane</option>
+                </InputSelect>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-primary" type="button" @onclick="ApplyFilters">
+                Filtruj
+            </button>
+            <button class="btn btn-outline-secondary" type="button" @onclick="ClearFilters">
+                Wyczyść
+            </button>
+
+            <div class="ms-auto text-muted small d-flex align-items-center">
+                Wynik: @_filtered.Count
+            </div>
+        </div>
+        
+        @if (_books is null)
+        {
+            <p>Ładowanie...</p>
+        }
+        else if (_filtered.Count == 0)
+        {
+            <p>Brak książek.</p>
+        }
+        else
+        {
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Tytuł</th>
+                        <th>Autor</th>
+                        <th>Kategoria</th>
+                        <th>Status</th>
+                        <th>Rezerwacja do</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in _filtered)
+                    {
+                        <tr>
+                            <td>@b.Title</td>
+                            <td>@b.Author</td>
+                            <td>@(b.Category?.Name ?? "-")</td>
+                            <td>@(b.IsAvailable ? "Dostępna" : "Zarezerwowana")</td>
+                            <td>@(b.ReservedUntil.HasValue? b.ReservedUntil.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </Authorized>
+
+    <NotAuthorized>
+        <p>Brak uprawnień.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private string _searchText = "";
+    private int? _categoryId = null;
+
+    // "all" | "available" | "reserved"
+    private string _status = "all";
+
+    private List<BookCategory> _categories = new();
+    private List<Book>? _books;
+    private List<Book> _filtered = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Db.BookCategories
+            .OrderBy(c => c.Name)
+            .ToListAsync();
+
+        _books = await Db.Books
+            .Include(b => b.Category)
+            .OrderBy(b => b.Author)
+            .ThenBy(b => b.Title)
+            .ToListAsync();
+
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        if (_books is null)
+        {
+            _filtered = new();
+            return;
+        }
+
+        // budujemy "drzewko" wyrażeń (Interpreter)
+        IBookFilterExpression expr = new AllBooksExpression();
+
+        expr = new AndExpression(expr, new TextSearchExpression(_searchText));
+        expr = new AndExpression(expr, new CategoryExpression(_categoryId));
+        expr = new AndExpression(expr, new StatusExpression(_status));
+
+        _filtered = expr.Interpret(_books).ToList();
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = "";
+        _categoryId = null;
+        _status = "all";
+        ApplyFilters();
+    }
+}

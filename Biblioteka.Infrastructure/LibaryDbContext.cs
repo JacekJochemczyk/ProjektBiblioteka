@@ -42,6 +42,9 @@ namespace Biblioteka.Infrastructure
 
                 b.Property(x => x.IsAvailable)
                     .HasDefaultValue(true);
+                
+                b.Property(x => x.IsArchived)
+                    .HasDefaultValue(false);
 
                 b.Property(x => x.ReservedUntil)
                     .IsRequired(false);
