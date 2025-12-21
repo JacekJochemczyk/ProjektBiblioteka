@@ -245,7 +245,7 @@ Z tego korzysta logika rezerwacji do wyliczania `ReservedUntil`:
 
 ---
 
-## Autor
+## Autorzy
 
 Jacek Jochemczyk / Michał Gandyk
 
