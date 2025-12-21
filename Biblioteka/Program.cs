@@ -1,12 +1,19 @@
-using Biblioteka.Components;
+ï»¿using Biblioteka.Components;
+using Biblioteka.Domain;
+using Biblioteka.Domain.Interpreter;
+using Biblioteka.Domain.Reports.Abstractions;
+using Biblioteka.Domain.Reports.Models;
 using Biblioteka.Infrastructure;
 using Biblioteka.Infrastructure.Auth;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
-using Biblioteka.Domain;
+using Biblioteka.Infrastructure.Reports;
 using Biblioteka.Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using QuestPDF.Drawing;
+using QuestPDF.Infrastructure;
 
 
 
@@ -33,7 +40,7 @@ namespace Biblioteka
             // Identity + Role + Cookies
             builder.Services.AddIdentityCore<AppUser>(options =>
             {
-                // Na start poluzujmy wymagania hase³, ¿eby szybciej testowaæ
+                // Na start poluzujmy wymagania haseÅ‚, Å¼eby szybciej testowaÄ‡
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequireUppercase = false;
                 options.Password.RequireLowercase = false;
@@ -47,17 +54,21 @@ namespace Biblioteka
             builder.Services.AddScoped<INotificationService, NotificationService>();
             builder.Services.AddScoped<IReservationMediator, ReservationMediator>();
 
+            builder.Services.AddScoped<IReportGenerator, PdfReportGenerator>();
+            builder.Services.AddScoped<IReportGenerator, CsvReportGenerator>();
+            builder.Services.AddScoped<IReportFactory, ReportFactory>();
+
             builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
                 .AddCookie(IdentityConstants.ApplicationScheme, options =>
                 {
-                    options.LoginPath = "/login";     // gdzie przekierowaæ, gdy brak zalogowania
+                    options.LoginPath = "/login";     // gdzie przekierowaÄ‡, gdy brak zalogowania
                     options.LogoutPath = "/logout";
                     options.AccessDeniedPath = "/";   // na razie
                 });
 
-            builder.Services.AddAuthorization(); // polityki dodamy póŸniej
+            builder.Services.AddAuthorization(); // polityki dodamy pÃ³Åºniej
 
-            // Blazor potrzebuje AuthenticationState w drzewie komponentów
+            // Blazor potrzebuje AuthenticationState w drzewie komponentÃ³w
             builder.Services.AddCascadingAuthenticationState();
 
             builder.Services.AddSingleton<ILibraryRules, LibraryRules>();
@@ -69,11 +80,11 @@ namespace Biblioteka
             {
                 var services = scope.ServiceProvider;
 
-                // Migracje + seed ksi¹¿ek
+                // Migracje + seed ksiÄ…Å¼ek
                 var db = services.GetRequiredService<LibraryDbContext>();
                 await DbInitializer.InitializeAsync(db);
 
-                // Tworzenie ról i konta pracownika
+                // Tworzenie rÃ³l i konta pracownika
                 var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
                 var userManager = services.GetRequiredService<UserManager<AppUser>>();
 
@@ -104,7 +115,7 @@ namespace Biblioteka
                     }
                     else
                     {
-                        Console.WriteLine("B³¹d przy tworzeniu konta pracownika:");
+                        Console.WriteLine("BÅ‚Ä…d przy tworzeniu konta pracownika:");
                         foreach (var e in result.Errors)
                             Console.WriteLine($"   - {e.Description}");
                     }
@@ -115,6 +126,60 @@ namespace Biblioteka
             // Middleware autoryzacji i uwierzytelniania
             app.UseAuthentication();
             app.UseAuthorization();
+
+            app.MapGet("/admin/books-report/download", async (
+                string? q,
+                int? categoryId,
+                string status,
+                ReportFormat format,
+                LibraryDbContext db,
+                IReportFactory reportFactory,
+                CancellationToken ct) =>
+            {
+                // 1) pobierz ksiÄ…Å¼ki
+                var books = await db.Books
+                    .Include(b => b.Category)
+                    .OrderBy(b => b.Author)
+                    .ThenBy(b => b.Title)
+                    .ToListAsync(ct);
+
+                // 2) Interpreter â€“ dokÅ‚adnie jak na stronie
+                IBookFilterExpression expr = new AllBooksExpression();
+                expr = new AndExpression(expr, new TextSearchExpression(q ?? ""));
+                expr = new AndExpression(expr, new CategoryExpression(categoryId));
+                expr = new AndExpression(expr, new StatusExpression(status ?? "all"));
+
+                var filtered = expr.Interpret(books).ToList();
+
+                // 3) mapowanie do wierszy raportu
+                var rows = filtered.Select(b => new BookReportRow
+                {
+                    Title = b.Title,
+                    Author = b.Author,
+                    Category = b.Category?.Name ?? "-",
+                    YearPublished = b.YearPublished,
+                    Status = b.IsArchived
+                        ? "Zarchiwizowana"
+                        : (b.IsAvailable ? "DostÄ™pna" : "Zarezerwowana"),
+                    ReservedUntilText = b.ReservedUntil.HasValue
+                        ? b.ReservedUntil.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        : "-"
+                }).ToList();
+
+                // 4) request â€“ data raportu + opis filtra
+                var request = new ReportRequest
+                {
+                    GeneratedAt = DateTime.Now,
+                    Query = $"q={q ?? ""}, categoryId={categoryId?.ToString() ?? "-"}, status={status}, format={format}"
+                };
+
+                // 5) Abstract Factory â†’ generator â†’ plik
+                var generator = reportFactory.Create(format);
+                var file = await generator.GenerateAsync(rows, request, ct);
+
+                return Results.File(file.Content, file.ContentType, file.FileName);
+            })
+            .RequireAuthorization(new AuthorizeAttribute { Roles = "Employee" });
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
@@ -147,13 +212,13 @@ namespace Biblioteka
 
                 if (!result.Succeeded)
                 {
-                    // wracamy na /login z prost¹ informacj¹ w query string
+                    // wracamy na /login z prostÄ… informacjÄ… w query string
                     return Results.LocalRedirect("/login?error=1");
                 }
 
-                // sukces -> na stronê g³ówn¹
+                // sukces -> na stronÄ™ gÅ‚Ã³wnÄ…
                 return Results.LocalRedirect("/");
-            }).DisableAntiforgery(); // logowanie wy³¹czamy z antyforgery
+            }).DisableAntiforgery(); // logowanie wyÅ‚Ä…czamy z antyforgery
 
             app.MapPost("/auth/logout", async (
                 SignInManager<AppUser> signInManager) =>
@@ -165,6 +230,18 @@ namespace Biblioteka
 
             app.MapRazorComponents<App>()
                 .AddInteractiveServerRenderMode();
+
+            // QuestPDF: licencja community (wymagane przez QuestPDF)
+            QuestPDF.Settings.License = LicenseType.Community;
+
+            // Rejestracja fontu z wwwroot/fonts/DejaVuSans.ttf
+            var fontPath = Path.Combine(app.Environment.WebRootPath, "fonts", "DejaVuSans.ttf");
+            if (File.Exists(fontPath))
+            {
+                using var fs = File.OpenRead(fontPath);
+                FontManager.RegisterFont(fs);
+            }
+
 
             app.Run();
         }

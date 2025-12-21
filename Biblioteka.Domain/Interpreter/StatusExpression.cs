@@ -21,6 +21,8 @@ namespace Biblioteka.Domain.Interpreter
             {
                 "available" => input.Where(b => b.IsAvailable),
                 "reserved" => input.Where(b => !b.IsAvailable),
+                "archived" => input.Where(b => b.IsArchived),
+                "all" or "" or null => input,
                 _ => input
             };
         }
