@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Biblioteka.Domain.Notificaions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -33,6 +34,24 @@ namespace Biblioteka.Domain
         Task<IReadOnlyList<Notification>> GetAllAsync(
             string userId,
             CancellationToken ct = default);
+
+        Task AddAsync(
+            string userId,
+            string message,
+            NotificationType type,
+            NotificationTarget target = NotificationTarget.None,
+            int? relatedId = null,
+            string? targetUrl = null,
+            CancellationToken ct = default);
+
+        Task AddForEmployeesAsync(
+            string message,
+            NotificationType type = NotificationType.General,
+            NotificationTarget target = NotificationTarget.None,
+            int? relatedId = null,
+            string? targetUrl = null,
+            CancellationToken ct = default);
+
     }
 
 }

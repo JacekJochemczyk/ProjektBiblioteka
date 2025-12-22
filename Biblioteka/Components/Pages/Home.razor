@@ -1,7 +1,102 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Biblioteka</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="home-hero">
+    <div class="home-overlay">
+        <h1>Biblioteka online</h1>
+        <p class="lead">
+            System zarządzania książkami, rezerwacjami i raportami bibliotecznymi
+        </p>
+    </div>
+</div>
 
-Welcome to your new app.
+<div class="container mt-5">
+    <div class="row text-center g-4">
+
+        <div class="col-md-3">
+            <NavLink class="feature-link" href="/books">
+                <div class="feature-box">
+                    <h4>📚 Książki</h4>
+                    <p>Przeglądaj dostępne pozycje i ich status.</p>
+                </div>
+            </NavLink>
+        </div>
+
+        <div class="col-md-3">
+            <NavLink class="feature-link" href="/my-reservations">
+                <div class="feature-box">
+                    <h4>📝 Rezerwacje</h4>
+                    <p>Zobacz swoje rezerwacje i zarządzaj nimi.</p>
+                </div>
+            </NavLink>
+        </div>
+
+        <div class="col-md-3">
+            <div class="feature-box">
+                <h4>🔔 Powiadomienia</h4>
+                <p>Pojawiają się w prawym górnym rogu (dzwonek).</p>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <NavLink class="feature-link" href="/admin/books-report">
+                <div class="feature-box">
+                    <h4>📊 Raporty</h4>
+                    <p>Generuj raporty PDF i CSV (pracownik).</p>
+                </div>
+            </NavLink>
+        </div>
+    </div>
+
+    <hr class="my-5" />
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <h3>O aplikacji</h3>
+            <p>
+                Aplikacja „Biblioteka online” pozwala przeglądać ksiązki w bibliotece, tworzyć rezerwacje
+                oraz obsługiwać proces przygotowania i wydania książek. System posiada panel dla czytelnika
+                i panel pracownika, a informacje o zmianach statusu są przekazywane przez powiadomienia.
+            </p>
+
+            <h4 class="mt-4">Co może czytelnik?</h4>
+            <ul>
+                <li>Przeglądać książki oraz filtrować po tytule, autorze i kategorii.</li>
+                <li>Rezerwować dostępne książki (z terminem odbioru liczonym wg zasad biblioteki).</li>
+                <li>Zarządzać swoimi rezerwacjami (np. anulowanie).</li>
+                <li>Otrzymywać powiadomienia, gdy pracownik przygotuje książkę do odbioru.</li>
+            </ul>
+
+            <h4 class="mt-4">Co może pracownik?</h4>
+            <ul>
+                <li>Dodawać, edytować i archiwizować książki (archiwalne nie są widoczne dla czytelników).</li>
+                <li>Zarządzać rezerwacjami: oznaczać jako gotowe do odbioru / wydane / zwrócone oraz anulować z powodem.</li>
+                <li>Generować raporty stanu księgozbioru (PDF/CSV) na podstawie filtrów.</li>
+            </ul>
+        </div>
+
+        <div class="col-lg-5">
+            <h3>Jak przetestować?</h3>
+
+            <div class="alert alert-light border">
+                <strong>Konto pracownika</strong><br />
+                Login: <code>pracownik@biblioteka.local</code><br />
+                Hasło: <code>Pass123!</code>
+            </div>
+
+            <div class="alert alert-light border">
+                <strong>Konto czytelnika</strong><br />
+                Login: <code>czosnek@int.pl</code><br />
+                Hasło: <code>czosnek2020</code><br />
+                <span class="text-muted">albo utwórz nowe konto w zakładce „Rejestracja”.</span>
+            </div>
+
+            <p class="text-muted">
+                Wskazówka: po rezerwacji wykonanej przez czytelnika, pracownik dostaje powiadomienie
+                o nowej rezerwacji, a czytelnik dostaje powiadomienie, gdy książka zostanie przygotowana.
+            </p>
+        </div>
+    </div>
+
+</div>

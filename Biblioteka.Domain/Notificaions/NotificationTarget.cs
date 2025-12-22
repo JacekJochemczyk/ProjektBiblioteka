@@ -1,4 +1,4 @@
-﻿namespace Biblioteka.Domain.Noificaions
+﻿namespace Biblioteka.Domain.Notificaions
 {
     public enum NotificationTarget
     {

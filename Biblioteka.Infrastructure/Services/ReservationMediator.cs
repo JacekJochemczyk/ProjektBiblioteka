@@ -1,4 +1,5 @@
 ﻿using Biblioteka.Domain;
+using Biblioteka.Domain.Notificaions;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
@@ -50,7 +51,11 @@ namespace Biblioteka.Infrastructure.Services
             // 3. Powiadamiamy wszystkich pracowników
             await _notificationService.AddForEmployeesAsync(
                 $"Nowa rezerwacja książki „{title}”.",
-                ct);
+                type: NotificationType.ReservationCreated,
+                target: NotificationTarget.AdminReservations,
+                relatedId: reservation.Id,
+                targetUrl: "/admin/reservations",
+                ct: ct);
 
             return reservation;
         }
@@ -78,9 +83,14 @@ namespace Biblioteka.Infrastructure.Services
             var title = reservation.Book?.Title ?? "nieznana książka";
 
             // powiadamiamy czytelnika, że książka jest gotowa do odbioru
-            await _notificationService.AddForEmployeesAsync(
-                $"Nowa rezerwacja książki „{title}”.",
-                ct);
+            await _notificationService.AddAsync(
+                reservation.UserId,
+                $"Książka „{title}” jest gotowa do odbioru w bibliotece.",
+                type: NotificationType.ReservationPrepared,
+                target: NotificationTarget.MyReservations,
+                relatedId: reservation.Id,
+                targetUrl: "/my-reservations",
+                ct: ct);
 
             return true;
         }
