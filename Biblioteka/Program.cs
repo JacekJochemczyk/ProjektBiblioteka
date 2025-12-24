@@ -120,6 +120,32 @@ namespace Biblioteka
                             Console.WriteLine($"   - {e.Description}");
                     }
                 }
+
+                const string readerEmail = "czytelnik@int.pl";
+                const string readerPassword = "czytelnik2020";
+
+                var reader = await userManager.FindByEmailAsync(readerEmail);
+                if (reader is null)
+                {
+                    reader = new AppUser
+                    {
+                        UserName = readerEmail,
+                        Email = readerEmail,
+                        EmailConfirmed = true
+                    };
+
+                    var result = await userManager.CreateAsync(reader, readerPassword);
+                    if (result.Succeeded)
+                    {
+                        await userManager.AddToRoleAsync(reader, "User");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Błąd przy tworzeniu konta czytelnika:");
+                        foreach (var e in result.Errors)
+                            Console.WriteLine($"   - {e.Description}");
+                    }
+                }
             }
 
 
