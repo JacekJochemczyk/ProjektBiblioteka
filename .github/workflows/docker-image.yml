@@ -51,6 +51,6 @@ jobs:
           script: |
             set -e
             cd ~/portfolio
-            docker-compose pull biblioteka
-            docker-compose up -d --remove-orphans
-            docker-image prune -f
+            sudo docker-compose pull biblioteka
+            sudo docker-compose up -d --remove-orphans
+            sudo docker-image prune -f
