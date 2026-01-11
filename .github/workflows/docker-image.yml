@@ -2,7 +2,7 @@ name: build-and-push-biblioteka
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
 
 permissions:
   contents: read
@@ -33,5 +33,5 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository_owner }}/biblioteka-web:latest
-            ghcr.io/${{ github.repository_owner }}/biblioteka-web:${{ github.sha }}
+            ghcr.io/jacekjochemczyk/biblioteka-web:latest
+            ghcr.io/jacekjochemczyk/biblioteka-web:${{ github.sha }}
