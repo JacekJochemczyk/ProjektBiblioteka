@@ -11,6 +11,19 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 
+<HeadContent>
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DJ05PZMDE1"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-DJ05PZMDE1', {
+            anonymize_ip: true
+        });
+    </script>
+</HeadContent>
+
 <div class="page">
     <div class="sidebar">
         <NavMenu />
