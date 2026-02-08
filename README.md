@@ -32,6 +32,13 @@ Celem projektu było **zrobienie działającej aplikacji webowej**, a jednocześ
 
 ---
 
+### CI/CD
+
+Projekt wykorzystuje GitHub Actions do automatycznego:
+- budowania obrazu Docker
+- publikacji do GitHub Container Registry
+- wdrażania aplikacji na serwer Oracle Cloud przy użyciu Docker Compose
+
 ## 1) Logowanie i rejestracja użytkowników ✅
 
 Aplikacja posiada logowanie i rejestrację użytkownika.
