@@ -232,7 +232,7 @@ Zasady działania biblioteki (dni robocze, godziny otwarcia, wyliczanie terminu 
   - `AddSingleton<ILibraryRules, LibraryRules>()`
 
 Z tego korzysta logika rezerwacji do wyliczania `ReservedUntil`:
-- zamiast “72h”, termin jest liczony jako **do końca drugiego następnego dnia roboczego (18:00)**.
+- zamiast np “72h”, termin jest liczony jako **do końca drugiego następnego dnia roboczego (18:00)**.
 
 ---
 
@@ -256,6 +256,6 @@ Z tego korzysta logika rezerwacji do wyliczania `ReservedUntil`:
 
 ## Autorzy
 
-Jacek Jochemczyk / Michał Gandyk
+Jacek Jochemczyk 
 
 Projekt wykonany jako aplikacja demonstracyjna
