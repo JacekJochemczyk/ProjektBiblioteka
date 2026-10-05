@@ -20,11 +20,14 @@ RUN dotnet publish Biblioteka/Biblioteka.csproj -c Release -o /app/publish /p:Us
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
-# SQLite będzie zapisywał plik tutaj
-RUN mkdir -p /app/App_Data && chmod 777 /app/App_Data
+RUN mkdir -p /app/App_Data \
+    && chown -R app:app /app
 
-COPY --from=build /app/publish .
+COPY --from=build --chown=app:app /app/publish .
+
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+
+USER app
 
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Biblioteka.dll"]

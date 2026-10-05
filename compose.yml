@@ -1,0 +1,16 @@
+services:
+  biblioteka:
+    container_name: biblioteka
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    volumes:
+      - biblioteka-data:/app/App_Data
+      - biblioteka-dataprotection:/home/app/.aspnet/DataProtection-Keys
+    restart: unless-stopped
+
+volumes:
+  biblioteka-data:
+  biblioteka-dataprotection:
